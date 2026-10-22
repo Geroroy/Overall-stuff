@@ -9,3 +9,8 @@ __pycache__/
 /input/
 /output/
 /out/
+
+# PyInstaller
+/dist/
+*.spec.bak
+packaging/build/

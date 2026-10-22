@@ -16,10 +16,14 @@ dependencies = [
 [project.optional-dependencies]
 sdk = ["dnfile>=0.14"]
 lz4 = ["lz4>=4.0"]
-test = ["pytest>=7"]
+test = ["pytest>=7", "Pillow>=11.2"]
+gui = ["tkinterdnd2>=0.3"]
 
 [project.scripts]
 fbmod-extract = "fbmod_extractor.cli:main"
+
+[project.gui-scripts]
+fbmod-converter = "fbmod_extractor.gui:main"
 
 [tool.setuptools.packages.find]
 include = ["fbmod_extractor*"]

@@ -10,6 +10,15 @@ It only exports data that is actually decoded from the mod (or from game data
 you supply). Missing geometry, UVs, textures or bones are reported, never
 synthesised.
 
+## Desktop app (drop a .fbmod, get FBX)
+
+`FBMOD-Converter` is a small window app: drop a `.fbmod` on it (or on its icon)
+and it converts immediately, finding Blender automatically. Windows builds come
+from the **Build FBMOD Converter (Windows)** workflow (Actions tab → artifact
+`FBMOD-Converter-windows`) or `packaging\build_windows.bat`. From source:
+`pip install -e .[gui]` then `fbmod-converter`. User guide (Korean):
+[docs/APP_KO.md](docs/APP_KO.md).
+
 ## Install
 
 ```

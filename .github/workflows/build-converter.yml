@@ -1,0 +1,43 @@
+name: Build FBMOD Converter (Windows)
+
+# Manual run (Actions tab -> "Build FBMOD Converter" -> Run workflow) or a converter-v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["converter-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .[test,gui] pyinstaller
+      - name: Tests
+        run: python -m pytest -q
+      - name: Build exe
+        run: pyinstaller --noconfirm --clean packaging/fbmod_converter.spec
+      - name: Smoke test the exe on a synthetic mod
+        shell: pwsh
+        run: |
+          python -c "from fbmod_extractor.synth import synthetic_hero_mod; open('smoke.fbmod','wb').write(synthetic_hero_mod()[0])"
+          $p = Start-Process -FilePath dist\FBMOD-Converter.exe -ArgumentList "$PWD\smoke.fbmod" -PassThru
+          for ($i = 0; $i -lt 120 -and -not (Test-Path smoke_converted\Extraction_Report.json); $i++) { Start-Sleep 1 }
+          Start-Sleep 2
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          $r = Get-Content smoke_converted\Extraction_Report.json | ConvertFrom-Json
+          "outcome: $($r.outcome)"
+          if ($r.outcome -ne "complete") { exit 1 }
+          if (-not (Test-Path smoke_converted\meshes\synth_body_mesh.glb)) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FBMOD-Converter-windows
+          path: dist/FBMOD-Converter.exe

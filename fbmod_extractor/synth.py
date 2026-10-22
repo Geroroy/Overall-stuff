@@ -404,7 +404,12 @@ def encode_texture(img: Image.Image, fmt: str) -> bytes:
     b = io.BytesIO()
     (img.convert("RGB") if fmt == "BC5_UNORM" else img).save(b, "DDS", pixel_format=pf)
     raw = b.getvalue()
-    return raw[148:] if raw[84:88] == b"DX10" else raw[128:]
+    data = raw[148:] if raw[84:88] == b"DX10" else raw[128:]
+    block = 8 if fmt == "BC1_UNORM" else 16
+    if len(data) != (img.width // 4) * (img.height // 4) * block:
+        raise RuntimeError(f"this Pillow ({Image.__version__}) cannot encode {fmt}; Pillow >= 11.2 is needed "
+                           "for the synthetic test fixtures")
+    return data
 
 
 def build_texture(fmt: str, width: int, height: int, mip0: bytes, chunk_id: str, srgb: bool = False) -> bytes:

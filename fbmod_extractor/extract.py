@@ -228,7 +228,7 @@ class Extraction:
                 path.write_bytes(entry["data"])
                 if r.type == "res" and r.res_meta:
                     path.with_suffix(".meta").write_bytes(r.res_meta)
-                entry["raw_path"] = str(path.relative_to(self.out))
+                entry["raw_path"] = path.relative_to(self.out).as_posix()
 
     def _load_extra(self) -> None:
         """Load game data exported with Frosty Editor to fill dependencies the mod does not carry.
@@ -507,11 +507,11 @@ class Extraction:
                 base.parent.mkdir(parents=True, exist_ok=True)
                 dds = base.with_suffix(".dds")
                 write_dds(dds, tx, mips)
-                info["outputs"]["dds"] = str(dds.relative_to(self.out))
+                info["outputs"]["dds"] = dds.relative_to(self.out).as_posix()
                 img = decode_to_image(tx, mips[0])
                 png = base.with_suffix(".png")
                 img.save(png)
-                info["outputs"]["png"] = str(png.relative_to(self.out))
+                info["outputs"]["png"] = png.relative_to(self.out).as_posix()
                 info["decoded_mip"] = mips[0].level
                 info["image_mode"] = img.mode
                 info["outputs"].update(self._derived_channels(img, base, role, tx))
@@ -545,7 +545,7 @@ class Extraction:
             img = img.convert("RGBA")
         png = base.with_suffix(".png")
         img.save(png)
-        info["outputs"]["png"] = str(png.relative_to(self.out))
+        info["outputs"]["png"] = png.relative_to(self.out).as_posix()
         info["image_mode"] = img.mode
         info["outputs"].update(self._derived_channels(img, base, role, None))
         info["status"] = "ok"
@@ -573,15 +573,15 @@ class Extraction:
         if "base_color" in chans and arr.shape[2] >= 3:
             p = base.with_name(base.name + ".basecolor.png")
             Image.fromarray(arr[:, :, :3]).save(p)
-            out["base_color"] = str(p.relative_to(self.out))
+            out["base_color"] = p.relative_to(self.out).as_posix()
         if chans.get("smoothness") == "A" and arr.shape[2] == 4:
             p = base.with_name(base.name + ".roughness.png")
             Image.fromarray(255 - arr[:, :, 3]).save(p)
-            out["roughness_from_inverted_alpha"] = str(p.relative_to(self.out))
+            out["roughness_from_inverted_alpha"] = p.relative_to(self.out).as_posix()
         if chans.get("metallic") == "A" and arr.shape[2] == 4:
             p = base.with_name(base.name + ".metallic.png")
             Image.fromarray(arr[:, :, 3]).save(p)
-            out["metallic_from_alpha"] = str(p.relative_to(self.out))
+            out["metallic_from_alpha"] = p.relative_to(self.out).as_posix()
         if "normal" in chans:
             out["normal_source"] = "pending_convention"
         return out
@@ -606,7 +606,7 @@ class Extraction:
         rgb = np.dstack([x, y, z]) * 0.5 + 0.5
         p = (self.out / png).with_name(Path(png).stem + ".normal_gl.png")
         Image.fromarray((np.clip(rgb, 0, 1) * 255 + 0.5).astype(np.uint8), "RGB").save(p)
-        rel = str(p.relative_to(self.out))
+        rel = p.relative_to(self.out).as_posix()
         tex_info["outputs"]["normal_opengl"] = rel
         tex_info["outputs"].pop("normal_source", None)
         return rel
@@ -916,7 +916,7 @@ class Extraction:
         mesh_dir.mkdir(parents=True, exist_ok=True)
 
         def rel(p: str) -> str:
-            return str(Path("..") / p)
+            return (Path("..") / p).as_posix()
 
         for sections in decoded:
             for ds in sections:
@@ -963,7 +963,7 @@ class Extraction:
                             skeleton=skeleton, keep_normals=keep, flip_winding=flip,
                             extras={"source_mod": self.mod_path.name, "meshset": ms.full_name,
                                     "bbox_min": list(ms.bbox_min), "bbox_max": list(ms.bbox_max)})
-        info["gltf"] = str(glb.relative_to(self.out))
+        info["gltf"] = glb.relative_to(self.out).as_posix()
         info["gltf_summary"] = summary
         info["totals"] = {
             "vertices": int(sum(len(ds.positions) for s in decoded for ds in s)),
@@ -984,7 +984,7 @@ class Extraction:
         expect = build_expectations(info["output_name"], decoded, gl_materials, sec_mat, self.opts.axis, skeleton)
         expect_path = mesh_dir / f"{info['output_name']}.expect.json"
         expect_path.write_text(json.dumps(expect, indent=1))
-        info["blender_expectations"] = str(expect_path.relative_to(self.out))
+        info["blender_expectations"] = expect_path.relative_to(self.out).as_posix()
 
     def _load_skeleton(self, decoded) -> tuple[SkeletonData | None, dict]:
         has_skin = any(ds.joints is not None for s in decoded for ds in s)

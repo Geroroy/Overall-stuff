@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -14,8 +15,34 @@ log = logging.getLogger(__name__)
 SCRIPTS = Path(__file__).parent / "blender"
 
 
+def _version_key(path: Path) -> tuple:
+    digits = [int(x) for x in "".join(c if c.isdigit() else " " for c in str(path)).split()]
+    return tuple(digits)
+
+
+def _installed_blenders() -> list[Path]:
+    """Blender executables in the standard install locations, newest version first."""
+    found: list[Path] = []
+    if sys.platform == "win32":
+        roots = [os.environ.get(v) for v in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA")]
+        for root in filter(None, roots):
+            found += Path(root).glob("Blender Foundation/Blender*/blender.exe")
+        steam = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Steam/steamapps/common/Blender/blender.exe"
+        if steam.is_file():
+            found.append(steam)
+    elif sys.platform == "darwin":
+        found += Path("/Applications").glob("Blender*.app/Contents/MacOS/Blender")
+        found += Path.home().glob("Applications/Blender*.app/Contents/MacOS/Blender")
+    else:
+        for pattern in ("/opt/blender*/blender", "/opt/*/blender-*/blender", "/snap/bin/blender"):
+            found += Path("/").glob(pattern.lstrip("/"))
+    return sorted((p for p in found if p.is_file()), key=_version_key, reverse=True)
+
+
 def find_blender(explicit: str | None = None) -> str | None:
-    for cand in (explicit, os.environ.get("BLENDER"), shutil.which("blender")):
+    """Explicit path, then $BLENDER, then PATH, then the standard install locations."""
+    cands = [explicit, os.environ.get("BLENDER"), shutil.which("blender")] + [str(p) for p in _installed_blenders()]
+    for cand in cands:
         if cand and Path(cand).is_file() and os.access(cand, os.X_OK):
             return str(cand)
     return None
@@ -24,7 +51,10 @@ def find_blender(explicit: str | None = None) -> str | None:
 def _run(blender: str, script: str, args: list[str], log_path: Path, timeout: int) -> int:
     cmd = [blender, "-b", "--factory-startup", "--python-exit-code", "3", "--python", str(SCRIPTS / script), "--"] + args
     with open(log_path, "w") as f:
-        proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+        # no console window popping up when started from the GUI on Windows
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
+        proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout, check=False,
+                              creationflags=flags)
     return proc.returncode
 
 
@@ -48,12 +78,12 @@ def export_fbx(report: dict, out_dir: Path, blender: str, timeout: int = 900) ->
                                             "--summary", str(build_json)], logs / f"{name}.build.log", timeout)
         if rc != 0 or not fbx.is_file():
             result["status"] = "build_failed"
-            result["log"] = str((logs / f"{name}.build.log").relative_to(out_dir))
+            result["log"] = (logs / f"{name}.build.log").relative_to(out_dir).as_posix()
             report["errors"].append(f"Blender FBX build failed for {name} (exit {rc}); see {result['log']}")
             mesh["blender"] = result
             continue
-        result["fbx"] = str(fbx.relative_to(out_dir))
-        result["blend"] = str(blend.relative_to(out_dir))
+        result["fbx"] = fbx.relative_to(out_dir).as_posix()
+        result["blend"] = blend.relative_to(out_dir).as_posix()
         result["build_summary"] = json.loads(build_json.read_text())
         val_json = logs / f"{name}.validation.json"
         rc = _run(blender, "validate_fbx.py", ["--fbx", str(fbx), "--expect", str(out_dir / mesh["blender_expectations"]),
