@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fbmod-extractor"
+version = "0.1.0"
+description = "Extract meshes and textures from Frosty (.fbmod) mods for Star Wars Battlefront II (2017) into glTF/FBX"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.22",
+    "zstandard>=0.19",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+sdk = ["dnfile>=0.14"]
+lz4 = ["lz4>=4.0"]
+test = ["pytest>=7"]
+
+[project.scripts]
+fbmod-extract = "fbmod_extractor.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["fbmod_extractor*"]
+
+[tool.setuptools.package-data]
+fbmod_extractor = ["data/*.json", "blender/*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
