@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Temple Dash — 인형 추격전</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:'Trebuchet MS','Malgun Gothic',Arial,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+  #c{display:block;width:100%;height:100%}
+  #hud{position:absolute;top:0;left:0;right:0;padding:10px 14px;display:flex;justify-content:space-between;align-items:flex-start;color:#fff;text-shadow:0 2px 4px #000;font-weight:bold;font-size:20px;pointer-events:none;letter-spacing:.5px}
+  #hud .big{font-size:30px;color:#ffd75e}
+  #hud .sub{font-size:15px;opacity:.9}
+  #chase{width:150px;height:10px;background:rgba(0,0,0,.45);border:2px solid #fff;border-radius:6px;margin-top:6px;overflow:hidden}
+  #chaseFill{height:100%;width:30%;background:linear-gradient(90deg,#5ad26a,#ffd43b 55%,#ff4d4d);transition:width .15s}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,20,12,.55);color:#fff;text-align:center;padding:16px}
+  .panel{background:linear-gradient(180deg,#3b2a18,#2a1d10);border:4px solid #c9a24e;border-radius:18px;padding:22px 26px;max-width:560px;width:92%;box-shadow:0 20px 60px #000}
+  h1{margin:0;font-size:46px;color:#ffd75e;text-shadow:0 3px 0 #7a4b12,0 6px 12px #000;letter-spacing:2px}
+  h2{margin:4px 0 14px;font-size:20px;color:#f3e3bd;font-weight:normal}
+  .cast{display:flex;gap:12px;justify-content:center;margin:10px 0 16px}
+  .cast div{width:120px}
+  .cast img{width:120px;height:120px;object-fit:cover;border-radius:14px;border:3px solid #c9a24e;background:#eee;box-shadow:0 6px 14px #000}
+  .cast span{display:block;font-size:13px;margin-top:6px;color:#ffe9b5}
+  .keys{font-size:15px;line-height:1.7;color:#f6ecd4;text-align:left;display:inline-block}
+  .keys b{display:inline-block;min-width:92px;color:#ffd75e}
+  button{margin-top:14px;font:bold 22px 'Trebuchet MS','Malgun Gothic',sans-serif;padding:12px 34px;border-radius:12px;border:0;background:#ffd75e;color:#4a2d08;cursor:pointer;box-shadow:0 5px 0 #a67a1c}
+  button:active{transform:translateY(3px);box-shadow:0 2px 0 #a67a1c}
+  .reason{font-size:22px;color:#ffb3a0;margin:4px 0 10px}
+  .score{font-size:34px;color:#ffd75e;margin:4px 0}
+  .best{font-size:16px;color:#f3e3bd}
+  .hidden{display:none}
+  #msg{position:absolute;left:0;right:0;top:34%;text-align:center;color:#fff;font-size:34px;font-weight:bold;text-shadow:0 3px 8px #000;pointer-events:none;opacity:0;transition:opacity .2s}
+  @media (max-width:520px){h1{font-size:34px}.cast div{width:92px}.cast img{width:92px;height:92px}.keys{font-size:13px}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div><div class="big" id="score">0</div><div class="sub">코인 <span id="coins">0</span></div></div>
+  <div style="text-align:right"><div id="meters">0 m</div><div class="sub">추격 거리</div><div id="chase"><div id="chaseFill"></div></div></div>
+</div>
+<div id="msg"></div>
+
+<div id="start" class="overlay">
+  <div class="panel">
+    <h1>TEMPLE DASH</h1>
+    <h2>인형 추격전 — 세 마리가 뒤에서 쫓아옵니다</h2>
+    <div class="cast">
+      <div><img src="assets/cast-gray.jpg" alt="회색 고릴라 인형"><span>회색 고릴라</span></div>
+      <div><img src="assets/cast-orange.png" alt="주황 원숭이 인형"><span>주황 원숭이</span></div>
+      <div><img src="assets/cast-brown.jpg" alt="초록 잠옷 원숭이 인형"><span>초록잠옷 원숭이</span></div>
+    </div>
+    <div class="keys">
+      <b>← → / A D</b> 모퉁이에서 회전, 평소엔 좌우 이동<br>
+      <b>↑ / W / Space</b> 점프 (통나무·구덩이·그루터기)<br>
+      <b>↓ / S</b> 슬라이드 (낮은 돌 들보 아래)<br>
+      <b>모바일</b> 스와이프 ← → ↑ ↓
+    </div><br>
+    <button id="btnStart">달리기 시작</button>
+    <div class="best" style="margin-top:10px">최고 점수: <span id="best0">0</span></div>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <div class="panel">
+    <h1>GAME OVER</h1>
+    <div class="reason" id="reason"></div>
+    <div class="score">점수 <span id="finalScore">0</span></div>
+    <div class="best">거리 <span id="finalMeters">0</span> m · 코인 <span id="finalCoins">0</span> · 최고 <span id="best1">0</span></div>
+    <button id="btnRetry">다시 달리기</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
+
+// ---------------------------------------------------------------- helpers
+const $=id=>document.getElementById(id);
+const rand=(a,b)=>a+Math.random()*(b-a);
+const randi=(a,b)=>Math.floor(rand(a,b+1));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+
+// ---------------------------------------------------------------- constants
+const LANE_W=2, W=6, HALF=3, CELL=6, DEPTH=14;
+const JUMP_DUR=0.78, JUMP_H=2.3, SLIDE_DUR=0.85;
+const BASE_SPEED=13, MAX_SPEED=30;
+const CHASE_FAR=6.0, CHASE_NEAR=2.2, CHASE_DANGER=4.0, CHASE_RECOVER=0.8;
+const CAM_BACK=12, CAM_UP=7;
+
+// ---------------------------------------------------------------- renderer / scene
+const canvas=$('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const SKY=0xa3c4ab;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(SKY); scene.fog=new THREE.Fog(SKY,30,125);
+const camera=new THREE.PerspectiveCamera(60,1,0.1,320);
+const hemi=new THREE.HemisphereLight(0xdfeeff,0x3b5a2c,0.9); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xfff2d6,1.6); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.near=1; sun.shadow.camera.far=120;
+sun.shadow.camera.left=-28; sun.shadow.camera.right=28; sun.shadow.camera.top=28; sun.shadow.camera.bottom=-28; sun.shadow.bias=-0.0008;
+scene.add(sun); scene.add(sun.target);
+
+function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+
+// ---------------------------------------------------------------- textures (procedural, no external art)
+function canvasTex(size,draw){ const c=document.createElement('canvas'); c.width=c.height=size; const g=c.getContext('2d'); draw(g,size); const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; }
+const stoneTex=canvasTex(256,(g,S)=>{
+  g.fillStyle='#6f6a5c'; g.fillRect(0,0,S,S);
+  const n=4,b=S/n;
+  for(let r=0;r<n;r++) for(let k=-1;k<=n;k++){ const off=(r%2)*b/2; const x=k*b+off,y=r*b;
+    g.fillStyle=`hsl(${38+Math.random()*12},${14+Math.random()*12}%,${44+Math.random()*14}%)`; g.fillRect(x+3,y+3,b-6,b-6);
+    g.fillStyle='rgba(255,255,255,.08)'; g.fillRect(x+3,y+3,b-6,4); }
+  for(let i=0;i<260;i++){ g.fillStyle=`rgba(${50+Math.random()*40},${105+Math.random()*60},45,${0.12+Math.random()*0.3})`; g.beginPath(); g.arc(Math.random()*S,Math.random()*S,Math.random()*7+1,0,6.3); g.fill(); }
+});
+const wallTex=canvasTex(256,(g,S)=>{
+  g.fillStyle='#5c574b'; g.fillRect(0,0,S,S);
+  const n=6,b=S/n;
+  for(let r=0;r<n;r++) for(let k=-1;k<=n;k++){ const off=(r%2)*b/2; const x=k*b+off,y=r*b;
+    g.fillStyle=`hsl(${35+Math.random()*10},${10+Math.random()*10}%,${30+Math.random()*14}%)`; g.fillRect(x+2,y+2,b-4,b-4); }
+  for(let i=0;i<160;i++){ g.fillStyle=`rgba(40,${90+Math.random()*60},40,${0.1+Math.random()*0.3})`; g.beginPath(); g.arc(Math.random()*S,Math.random()*S,Math.random()*9+2,0,6.3); g.fill(); }
+});
+const groundTex=canvasTex(256,(g,S)=>{
+  g.fillStyle='#3f6a33'; g.fillRect(0,0,S,S);
+  for(let i=0;i<900;i++){ g.fillStyle=`hsl(${95+Math.random()*30},${35+Math.random()*25}%,${22+Math.random()*22}%)`; g.beginPath(); g.arc(Math.random()*S,Math.random()*S,Math.random()*5+1,0,6.3); g.fill(); }
+});
+groundTex.repeat.set(30,30);
+
+const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:1,metalness:0,...o});
+const curbMat=M(0x8c8575), pillarMat=M(0x9a9282,{map:wallTex}), woodMat=M(0x6b4a2e), woodDark=M(0x4e3520), leafMats=[M(0x3f7a33),M(0x4f8f3a),M(0x2f6b2c),M(0x6a9a3c)];
+const coinMat=M(0xffc93c,{metalness:0.6,roughness:0.35,emissive:0x553300});
+const stumpTop=M(0xb8906a);
+
+const SPH=new THREE.SphereGeometry(1,22,16);
+function ball(r,mat,x,y,z,sx=1,sy=1,sz=1){ const m=new THREE.Mesh(SPH,mat); m.position.set(x,y,z); m.scale.set(r*sx,r*sy,r*sz); m.castShadow=true; return m; }
+function box(w,h,d,mat,x,y,z){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; return m; }
+function cyl(rt,rb,h,mat,x,y,z,seg=14){ const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; return m; }
+function smile(r,mat,x,y,z,tube=0.035){ const m=new THREE.Mesh(new THREE.TorusGeometry(r,tube,8,20,Math.PI),mat); m.position.set(x,y,z); m.rotation.set(0,Math.PI/2,Math.PI); return m; }
+
+// ---------------------------------------------------------------- ground (jungle floor far below the stone path)
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(600,600),M(0xffffff,{map:groundTex}));
+ground.rotation.x=-Math.PI/2; ground.position.y=-DEPTH-0.5; ground.receiveShadow=true; scene.add(ground);
+
+// ---------------------------------------------------------------- the three plush chasers (modeled from the photos, forward = +x)
+function plushGray(){ // dark slate gorilla with pale round face, heart-ish eyes, pink cheek
+  const g=new THREE.Group();
+  const dark=M(0x3b4150), light=M(0xd8dcd8), grey=M(0x878c93), pink=M(0xf0a2ad), eye=M(0x2a2e36);
+  g.add(ball(0.95,dark,0,0.85,0,1,0.82,1.05));
+  g.add(ball(0.8,dark,0.1,1.95,0));
+  g.add(ball(0.62,light,0.45,2.05,0,0.6,1,1));
+  g.add(ball(0.64,light,0.75,1.68,0,0.95,0.75,1.12));
+  g.add(ball(0.08,eye,0.96,2.26,0.2)); g.add(ball(0.08,eye,0.96,2.26,-0.2));
+  g.add(ball(0.15,grey,1.3,1.8,0.27,0.3,0.9,1)); g.add(ball(0.15,grey,1.3,1.8,-0.27,0.3,0.9,1));
+  g.add(smile(0.36,grey,1.34,1.62,0));
+  g.add(ball(0.13,pink,1.2,1.55,0.55,0.3,1,1));
+  g.add(ball(0.24,grey,0,2.0,0.82)); g.add(ball(0.24,grey,0,2.0,-0.82));
+  g.add(ball(0.4,light,0.7,1.0,0.78)); g.add(ball(0.4,light,0.7,1.0,-0.78));
+  g.add(ball(0.52,light,0.5,0.38,0.52,1,0.8,1)); g.add(ball(0.52,light,0.5,0.38,-0.52,1,0.8,1));
+  return g;
+}
+function plushOrange(){ // chunky orange monkey, cream face plate and muzzle, black dot eyes, hair tuft
+  const g=new THREE.Group();
+  const orange=M(0xe9925c), cream=M(0xf7e9d2), eye=M(0x1c1c1c), nose=M(0xd9a08d);
+  g.add(ball(0.98,orange,0,0.8,0,1.1,0.78,1.05));
+  g.add(ball(0.82,orange,0.2,1.9,0));
+  g.add(ball(0.6,cream,0.62,2.05,0,0.5,1,1.05));
+  g.add(ball(0.62,cream,0.78,1.62,0,1,0.72,1.1));
+  g.add(ball(0.085,eye,1.03,2.2,0.21)); g.add(ball(0.085,eye,1.03,2.2,-0.21));
+  g.add(ball(0.07,nose,1.38,1.72,0.17,0.5,1,1)); g.add(ball(0.07,nose,1.38,1.72,-0.17,0.5,1,1));
+  g.add(smile(0.22,nose,1.36,1.5,0,0.025));
+  for(const [x,z] of [[0.1,0],[0.3,0.18],[0.3,-0.18]]) g.add(cyl(0,0.12,0.45,orange,x,2.78,z,6));
+  const earL=ball(0.22,orange,0.1,2.3,0.78), earR=ball(0.22,orange,0.1,2.3,-0.78); g.add(earL,earR);
+  g.add(ball(0.12,cream,0.25,2.3,0.82)); g.add(ball(0.12,cream,0.25,2.3,-0.82));
+  g.add(ball(0.42,cream,0.75,0.95,0.85)); g.add(ball(0.42,cream,0.75,0.95,-0.85));
+  g.add(ball(0.5,cream,0.6,0.35,0.5,1,0.8,1)); g.add(ball(0.5,cream,0.6,0.35,-0.5,1,0.8,1));
+  return g;
+}
+function plushBrown(){ // brown monkey in green fleece pajamas with white bones
+  const g=new THREE.Group();
+  const brown=M(0x9b7a57), cream=M(0xf4ead8), green=M(0x4f6f3c), white=M(0xf5f5f0), eye=M(0x141414);
+  g.add(ball(0.9,green,0,0.9,0,0.95,0.95,1));
+  for(const [a,b] of [[0.3,0.6],[-0.4,0.2],[1.2,-0.4],[2.4,0.3],[3.4,-0.2],[0.9,-1.0]]){
+    const x=0.9*Math.cos(a)*Math.cos(b), z=0.9*Math.sin(a)*Math.cos(b), y=0.9+0.9*Math.sin(b);
+    const bone=new THREE.Mesh(new THREE.CapsuleGeometry(0.045,0.2,3,6),white); bone.position.set(x*1.02,y*1.0,z*1.02); bone.rotation.set(rand(0,3),rand(0,3),rand(0,3)); g.add(bone);
+  }
+  g.add(ball(0.85,brown,0.1,2.05,0));
+  g.add(ball(0.62,cream,0.62,2.2,0,0.5,1,1));
+  g.add(ball(0.58,cream,0.82,1.72,0,1,0.72,1.15));
+  g.add(ball(0.09,eye,1.08,2.3,0.25)); g.add(ball(0.09,eye,1.08,2.3,-0.25));
+  g.add(smile(0.26,eye,1.38,1.68,0,0.022));
+  g.add(ball(0.26,brown,0.1,2.15,0.88)); g.add(ball(0.26,brown,0.1,2.15,-0.88));
+  g.add(ball(0.15,cream,0.3,2.15,0.95)); g.add(ball(0.15,cream,0.3,2.15,-0.95));
+  g.add(ball(0.32,brown,0.65,0.9,0.9)); g.add(ball(0.32,brown,0.65,0.9,-0.9));
+  g.add(ball(0.38,brown,0.7,0.3,0.48,1,0.8,1)); g.add(ball(0.38,brown,0.7,0.3,-0.48,1,0.8,1));
+  return g;
+}
+
+// ---------------------------------------------------------------- the runner (original explorer, forward = +x)
+function makeRunner(){
+  const g=new THREE.Group();
+  const skin=M(0xe8b48c), shirt=M(0xc9b27a), pants=M(0x5a4634), hat=M(0x6b4a2b), shoe=M(0x3a2a1c), pack=M(0x7a5a3a);
+  const torso=box(0.42,0.8,0.7,shirt,0,1.25,0); g.add(torso);
+  g.add(box(0.3,0.5,0.5,pack,-0.32,1.3,0));
+  const head=ball(0.3,skin,0.02,1.95,0); g.add(head);
+  g.add(cyl(0.48,0.48,0.06,hat,0.02,2.1,0)); g.add(cyl(0.3,0.32,0.26,hat,0.02,2.25,0));
+  const limb=(mat,r,len)=>{ const m=new THREE.Mesh(new THREE.CapsuleGeometry(r,len,4,8),mat); m.castShadow=true; return m; };
+  const legs=[],arms=[];
+  for(const side of [-1,1]){
+    const lp=new THREE.Group(); lp.position.set(0,0.9,side*0.18); const l=limb(pants,0.12,0.6); l.position.y=-0.4; lp.add(l);
+    const sh=box(0.3,0.14,0.2,shoe,0.06,-0.78,0); lp.add(sh); g.add(lp); legs.push(lp);
+    const ap=new THREE.Group(); ap.position.set(0,1.6,side*0.45); const a=limb(skin,0.09,0.55); a.position.y=-0.35; ap.add(a); g.add(ap); arms.push(ap);
+  }
+  g.userData={legs,arms,torso,head};
+  return g;
+}
+
+// ---------------------------------------------------------------- obstacles / decor builders (segment-local coords: x along, z lateral)
+function makeTree(x,z){
+  const g=new THREE.Group(); const h=rand(DEPTH+1.5,DEPTH+6);
+  g.add(cyl(0.35,0.7,h,woodDark,0,h/2,0,8));
+  const n=randi(2,3);
+  for(let i=0;i<n;i++) g.add(ball(rand(1.3,2.1),pick(leafMats),rand(-0.8,0.8),h+rand(-0.5,1.2),rand(-0.8,0.8),1,0.8,1));
+  g.position.set(x,-DEPTH-0.4,z); return g;
+}
+function makeObstacle(o){
+  const g=new THREE.Group(); const lz=o.lane*LANE_W;
+  switch(o.type){
+    case 'stump': g.add(cyl(0.55,0.65,0.9,woodMat,0,0.45,lz,12)); g.add(cyl(0.5,0.5,0.06,stumpTop,0,0.92,lz,12)); break;
+    case 'tree': { g.add(cyl(0.45,0.6,5,woodDark,0,2.5,lz,10)); for(let i=0;i<3;i++) g.add(ball(rand(1.1,1.6),pick(leafMats),rand(-0.6,0.6),5+rand(-0.3,0.8),lz+rand(-0.6,0.6))); break; }
+    case 'root': { for(const [dy,dz,r] of [[0.22,0,0.26],[0.12,1.4,0.18],[0.14,-1.6,0.16]]){ const m=new THREE.Mesh(new THREE.CapsuleGeometry(r,W+0.4,4,8),woodDark); m.rotation.x=Math.PI/2; m.position.set(dz*0.3,dy,dz*0.2); m.castShadow=true; g.add(m);} break; }
+    case 'log': { const m=cyl(0.55,0.55,W+1.2,woodMat,0,0.55,0,14); m.rotation.x=Math.PI/2; g.add(m); g.add(cyl(0.2,0.2,1.2,woodDark,0.3,1.1,-1.2,6)); break; }
+    case 'arch': { for(const s of [-1,1]) g.add(box(0.7,2.2,0.7,pillarMat,0,1.1,s*(HALF+0.15))); g.add(box(0.8,0.5,W+1.0,pillarMat,0,2.0,0)); g.add(box(0.5,0.3,W+0.4,M(0x7a7262),0,1.65,0)); break; }
+  }
+  g.position.x=o.s; return g;
+}
+function makeCoin(c){ const m=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.12,18),coinMat); m.rotation.z=Math.PI/2; m.position.set(c.s,c.y,c.lane*LANE_W); m.castShadow=true; return m; }
+
+function floorMats(L){
+  const t1=stoneTex.clone(); t1.repeat.set(L/4,W/4);
+  const t2=wallTex.clone(); t2.repeat.set(L/4,DEPTH/4);
+  const t3=wallTex.clone(); t3.repeat.set(W/4,DEPTH/4);
+  const top=M(0xffffff,{map:t1}), side=M(0xffffff,{map:t2}), end=M(0xffffff,{map:t3});
+  return [end,end,top,top,side,side];
+}
+
+// ---------------------------------------------------------------- segments
+const G={state:'idle'};
+let segs=[], occ=new Map(), segSerial=0;
+const cellKey=(x,z)=>Math.floor(x/CELL)+','+Math.floor(z/CELL);
+
+function segmentCells(P,d,len){ const out=new Set(); for(let s=0;s<=len;s+=CELL/2){ out.add(cellKey(P.x+d.x*s,P.z+d.z*s)); } return out; }
+function cellsBlocked(P,d,len,ignoreId){
+  for(let s=12;s<=len;s+=CELL/2){ const x=P.x+d.x*s,z=P.z+d.z*s;
+    for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++){ const id=occ.get(cellKey(x+i*CELL,z+j*CELL)); if(id!==undefined && id!==ignoreId) return true; } }
+  return false;
+}
+function freeLength(P,d,ignoreId){ let s=12; while(s<120 && !cellsBlocked(P,d,s,ignoreId)) s+=CELL; return s-CELL; }
+
+function createSegment(P,d,prev){
+  const seg={id:segSerial++, P:P.clone(), d:d.clone(), perp:new THREE.Vector3(-d.z,0,d.x), obstacles:[], coins:[], gaps:[], coinMeshes:[]};
+  seg.start=prev?prev.start+prev.len:0;
+  let len=randi(6,14)*6;
+  const fl=freeLength(P,d,prev?prev.id:-1);
+  if(fl<len) len=Math.max(2*W,fl - (fl%6));
+  seg.len=len;
+  // choose turn
+  const last=prev?prev.turn:null, last2=prev&&prev.prevTurn?prev.prevTurn:null;
+  let cands=['L','R']; if(last && last===last2) cands=[last==='L'?'R':'L'];
+  cands.sort(()=>Math.random()-0.5);
+  const C=P.clone().addScaledVector(d,len-HALF);
+  let chosen=null;
+  for(const t of cands){ const d2=t==='L'?seg.perp.clone().negate():seg.perp.clone(); const P2=C.clone().addScaledVector(d2,HALF); if(freeLength(P2,d2,seg.id)>=2*W){ chosen=t; break; } }
+  seg.turn=chosen||cands[0]; seg.prevTurn=last;
+  seg.nextD=seg.turn==='L'?seg.perp.clone().negate():seg.perp.clone();
+  seg.nextP=C.clone().addScaledVector(seg.nextD,HALF);
+  seg.cells=segmentCells(P,d,len); for(const k of seg.cells) occ.set(k,seg.id);
+  // obstacles & coins
+  if(prev){ let s=10; const end=len-W-6;
+    while(s<end){
+      const r=Math.random(); let o;
+      if(r<0.3){ const l=randi(-1,1); o={type:'stump',lane:l,s,hl:0.7}; if(Math.random()<0.35){ let l2=randi(-1,1); if(l2===l) l2=(l+1>1)?-1:l+1; seg.obstacles.push({type:'stump',lane:l2,s,hl:0.7}); } }
+      else if(r<0.45) o={type:'root',lane:0,s,hl:0.5};
+      else if(r<0.6) o={type:'log',lane:0,s,hl:0.8};
+      else if(r<0.75) o={type:'arch',lane:0,s,hl:0.5};
+      else if(r<0.86){ o={type:'gap',lane:0,s,hl:1.9}; seg.gaps.push(o); }
+      else o={type:'tree',lane:randi(-1,1),s,hl:0.7};
+      seg.obstacles.push(o);
+      if(Math.random()<0.7){ const lane=randi(-1,1), y=Math.random()<0.2?2.3:0.9, n=randi(4,6); for(let i=0;i<n;i++) seg.coins.push({s:s+3+i*1.4,lane,y}); }
+      s+=12+rand(0,9);
+    }
+  }
+  seg.gaps.sort((a,b)=>a.s-b.s);
+  seg.group=buildSegmentMesh(seg); scene.add(seg.group);
+  return seg;
+}
+
+function buildSegmentMesh(seg){
+  const g=new THREE.Group(); g.position.copy(seg.P); g.rotation.y=Math.atan2(-seg.d.z,seg.d.x);
+  const len=seg.len;
+  // floor pieces split by gaps
+  const pieces=[]; let cur=0;
+  for(const gp of seg.gaps){ pieces.push([cur,gp.s-gp.hl]); cur=gp.s+gp.hl; } pieces.push([cur,len]);
+  for(const [a,b] of pieces){ const L=b-a; if(L<0.1) continue;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(L,DEPTH,W),floorMats(L)); m.position.set((a+b)/2,-DEPTH/2,0); m.receiveShadow=true; g.add(m);
+    // curbs on both sides along the straight part only
+    const cb=Math.min(b,len-W); if(cb-a>0.2) for(const side of [-1,1]) g.add(box(cb-a,0.35,0.35,curbMat,(a+cb)/2,0.17,side*(HALF-0.17)));
+  }
+  // corner square: curb on the closed side and across the far end, a pillar on the closed far corner
+  const closed=seg.turn==='L'?1:-1;
+  g.add(box(W,0.35,0.35,curbMat,len-HALF,0.17,closed*(HALF-0.17)));
+  g.add(box(0.35,0.35,W,curbMat,len-0.17,0.17,0));
+  g.add(box(1.1,3.2,1.1,pillarMat,len-0.6,1.6,closed*(HALF-0.6)));
+  g.add(box(1.5,0.3,1.5,pillarMat,len-0.6,3.3,closed*(HALF-0.6)));
+  // broken low wall on the closed side of the corner
+  g.add(box(W-2.4,1.2,0.5,pillarMat,len-HALF,0.6,closed*(HALF+0.1)));
+  // jungle trees on both sides of the straight part
+  for(let x=3;x<len-W-3;x+=rand(6,11)){ for(const side of [-1,1]) if(Math.random()<0.8) g.add(makeTree(x+rand(-2,2),side*(HALF+rand(3.2,6.5)))); }
+  // small stone markers every so often
+  for(let x=14;x<len-W-4;x+=24){ for(const side of [-1,1]) g.add(box(0.8,1.6,0.8,pillarMat,x,0.8,side*(HALF+0.6))); }
+  for(const o of seg.obstacles) if(o.type!=='gap') g.add(makeObstacle(o));
+  for(const c of seg.coins){ const m=makeCoin(c); c.mesh=m; g.add(m); seg.coinMeshes.push(m); }
+  return g;
+}
+
+function removeSegment(seg){ scene.remove(seg.group); for(const k of seg.cells) if(occ.get(k)===seg.id) occ.delete(k); seg.group.traverse(o=>{ if(o.geometry && o.geometry!==SPH) o.geometry.dispose(); }); }
+function ensureAhead(){ while(segs.length-G.segIdx<5){ const last=segs[segs.length-1]; segs.push(createSegment(last.nextP,last.nextD,last)); } }
+
+// ---------------------------------------------------------------- actors
+const runner=makeRunner(); scene.add(runner);
+const chasers=[plushGray(),plushOrange(),plushBrown()].map((g,i)=>{ g.scale.setScalar(0.8); g.userData.phase=i*1.3; g.userData.lane=(i-1)*LANE_W*0.8; g.userData.stagger=i*1.1; scene.add(g); return g; });
+const camDir=new THREE.Vector3(0,0,-1);
+const tmpV=new THREE.Vector3(), tmpV2=new THREE.Vector3();
+
+// ---------------------------------------------------------------- audio (synthesised, tiny)
+let actx=null;
+function audioInit(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+function tone(f1,f2,dur,type='sine',vol=0.12){ if(!actx) return; const o=actx.createOscillator(), g=actx.createGain(); o.type=type; o.frequency.setValueAtTime(f1,actx.currentTime); o.frequency.exponentialRampToValueAtTime(f2,actx.currentTime+dur); g.gain.setValueAtTime(vol,actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+dur); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+dur); }
+const sfx={coin:()=>tone(1300,1900,0.12,'square',0.05), jump:()=>tone(280,620,0.18,'sine',0.1), slide:()=>tone(500,180,0.2,'sine',0.08), turn:()=>tone(400,250,0.12,'triangle',0.07), stumble:()=>tone(140,70,0.3,'sawtooth',0.15), die:()=>tone(220,40,0.7,'sawtooth',0.18)};
+
+// ---------------------------------------------------------------- game state
+const best={get:()=>{ try{ return +localStorage.getItem('templeDashBest')||0; }catch(e){ return 0; } }, set:v=>{ try{ localStorage.setItem('templeDashBest',v); }catch(e){} }};
+$('best0').textContent=best.get();
+
+function reset(){
+  for(const s of segs) removeSegment(s); segs=[]; occ=new Map();
+  Object.assign(G,{state:'idle',time:0,speed:0,dist:0,coins:0,score:0,segIdx:0,s:6,laneX:0,targetLane:0,y:0,vy:0,
+    jumping:false,jumpT:0,sliding:false,slideT:0,chaseDist:CHASE_FAR,stumbleT:0,wobble:0,phase:0,deathT:0,reason:'',fallY:0});
+  segs.push(createSegment(new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1),null));
+  ensureAhead();
+  camDir.set(0,0,-1); runner.rotation.set(0,0,0); runner.scale.set(1,1,1);
+  updateHud(true);
+}
+
+function playerPos(out){ const seg=segs[G.segIdx]; return out.copy(seg.P).addScaledVector(seg.d,G.s).addScaledVector(seg.perp,G.laneX); }
+function pathPos(D,laneOff,out){
+  let i=0; for(;i<segs.length-1;i++) if(D<segs[i].start+segs[i].len-HALF) break;
+  const seg=segs[i]; const s=D-seg.start; out.copy(seg.P).addScaledVector(seg.d,s).addScaledVector(seg.perp,laneOff); return seg;
+}
+const playerD=()=>segs[G.segIdx].start+G.s;
+
+function start(){ audioInit(); reset(); G.state='run'; $('start').classList.add('hidden'); $('over').classList.add('hidden'); flash('GO!'); }
+function flash(t){ const m=$('msg'); m.textContent=t; m.style.opacity=1; clearTimeout(flash.t); flash.t=setTimeout(()=>m.style.opacity=0,700); }
+
+function gameOver(reason){
+  if(G.state!=='run') return;
+  G.state='dying'; G.reason=reason; G.deathT=0; sfx.die();
+  const m=$('msg'); m.textContent=reason==='caught'?'잡혔다!':reason==='fall'?'떨어졌다!':'쿵!'; m.style.opacity=1;
+}
+function showOver(){
+  G.state='over';
+  const txt={fall:'낭떠러지로 떨어졌어요',hit:'장애물에 부딪혔어요',caught:'인형 세 마리에게 잡혔어요!'}[G.reason];
+  $('reason').textContent=txt; $('finalScore').textContent=G.score; $('finalMeters').textContent=Math.floor(G.dist); $('finalCoins').textContent=G.coins;
+  if(G.score>best.get()) best.set(G.score); $('best1').textContent=best.get(); $('best0').textContent=best.get();
+  $('msg').style.opacity=0; $('over').classList.remove('hidden');
+}
+
+// ---------------------------------------------------------------- input
+function tryTurn(dir){
+  const seg=segs[G.segIdx]; if(G.s<seg.len-W-4 || seg.turn!==dir) return false;
+  const next=segs[G.segIdx+1]; const pos=playerPos(tmpV).sub(next.P);
+  let s2=pos.dot(next.d), l2=pos.dot(next.perp);
+  const ex=Math.abs(l2)-LANE_W; if(ex>0){ l2=Math.sign(l2)*LANE_W; s2-=ex; }
+  G.segIdx++; G.s=s2; G.laneX=l2; G.targetLane=clamp(Math.round(l2/LANE_W),-1,1);
+  sfx.turn(); return true;
+}
+function act(a){
+  if(G.state==='idle'||G.state==='over'){ if(a==='start') start(); return; }
+  if(G.state!=='run') return;
+  if(a==='left'){ if(!tryTurn('L')) G.targetLane=clamp(G.targetLane-1,-1,1); }
+  else if(a==='right'){ if(!tryTurn('R')) G.targetLane=clamp(G.targetLane+1,-1,1); }
+  else if(a==='jump'){ if(!G.jumping){ G.jumping=true; G.jumpT=0; G.sliding=false; sfx.jump(); } }
+  else if(a==='slide'){ if(!G.sliding){ G.sliding=true; G.slideT=0; if(G.jumping){ G.jumpT=Math.max(G.jumpT,JUMP_DUR*0.8); } sfx.slide(); } }
+}
+addEventListener('keydown',e=>{
+  const k=e.code; let a=null;
+  if(k==='ArrowLeft'||k==='KeyA') a='left'; else if(k==='ArrowRight'||k==='KeyD') a='right';
+  else if(k==='ArrowUp'||k==='KeyW'||k==='Space') a='jump'; else if(k==='ArrowDown'||k==='KeyS') a='slide';
+  else if(k==='Enter') a='start';
+  if(a){ e.preventDefault(); audioInit(); if(G.state==='idle'||G.state==='over') act('start'); else act(a); }
+});
+let tS=null;
+canvas.addEventListener('pointerdown',e=>{ tS={x:e.clientX,y:e.clientY}; audioInit(); });
+canvas.addEventListener('pointerup',e=>{ if(!tS) return; const dx=e.clientX-tS.x, dy=e.clientY-tS.y; tS=null;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<24){ act('start'); return; }
+  if(Math.abs(dx)>Math.abs(dy)) act(dx>0?'right':'left'); else act(dy<0?'jump':'slide'); });
+$('btnStart').onclick=()=>act('start'); $('btnRetry').onclick=()=>act('start');
+
+// ---------------------------------------------------------------- update
+function stumble(){
+  if(G.chaseDist<CHASE_DANGER){ G.chaseDist=0.6; gameOver('caught'); return; }
+  G.chaseDist=Math.min(G.chaseDist,CHASE_NEAR); G.stumbleT=0.55; G.wobble=1; sfx.stumble(); flash('휘청!');
+}
+function checkCollisions(){
+  const seg=segs[G.segIdx];
+  for(const o of seg.obstacles){
+    if(o.done) continue;
+    const ds=G.s-o.s;
+    if(ds>o.hl+0.6){ o.done=true; continue; }
+    if(Math.abs(ds)>o.hl+0.45) continue;
+    const inLane=Math.abs(G.laneX-o.lane*LANE_W)<1.25;
+    switch(o.type){
+      case 'gap': if(G.y<=0.02 && Math.abs(ds)<o.hl-0.4){ gameOver('fall'); } break;
+      case 'stump': if(inLane && G.y<0.75){ o.done=true; stumble(); } break;
+      case 'root': if(G.y<0.42){ o.done=true; stumble(); } break;
+      case 'tree': if(inLane && G.y<3.5) gameOver('hit'); break;
+      case 'log': if(G.y<1.0) gameOver('hit'); break;
+      case 'arch': if(!G.sliding) gameOver('hit'); break;
+    }
+    if(G.state!=='run') return;
+  }
+  for(let i=seg.coins.length-1;i>=0;i--){ const c=seg.coins[i];
+    if(Math.abs(G.s-c.s)<1.0 && Math.abs(G.laneX-c.lane*LANE_W)<1.2 && c.y>G.y+0.1 && c.y<G.y+2.3){
+      seg.group.remove(c.mesh); seg.coinMeshes.splice(seg.coinMeshes.indexOf(c.mesh),1); seg.coins.splice(i,1); G.coins++; sfx.coin(); }
+  }
+}
+
+let hudCache={};
+function updateHud(force){
+  const v={score:G.score,coins:G.coins,meters:Math.floor(G.dist)+' m'};
+  for(const k in v) if(force||hudCache[k]!==v[k]){ $(k).textContent=v[k]; hudCache[k]=v[k]; }
+  const pct=Math.round(clamp(1-(G.chaseDist-0.6)/(CHASE_FAR-0.6),0,1)*100); if(force||hudCache.p!==pct){ $('chaseFill').style.width=pct+'%'; hudCache.p=pct; }
+}
+
+function update(dt){
+  const running=G.state==='run';
+  if(running){
+    G.time+=dt; G.speed=Math.min(MAX_SPEED,BASE_SPEED+G.time*0.11);
+    let spd=G.speed; if(G.stumbleT>0){ G.stumbleT-=dt; spd*=0.55; }
+    G.s+=spd*dt; G.dist+=spd*dt;
+    G.laneX+=clamp(G.targetLane*LANE_W-G.laneX,-12*dt,12*dt);
+    if(G.jumping){ G.jumpT+=dt; const t=G.jumpT/JUMP_DUR; if(t>=1){ G.jumping=false; G.y=0; } else G.y=JUMP_H*Math.sin(Math.PI*t); }
+    if(G.sliding){ G.slideT+=dt; if(G.slideT>=SLIDE_DUR) G.sliding=false; }
+    const seg=segs[G.segIdx];
+    if(G.s>seg.len+0.15 && G.y<=0.02) gameOver('fall');
+    checkCollisions();
+    G.chaseDist=Math.min(CHASE_FAR,G.chaseDist+CHASE_RECOVER*dt);
+    G.score=Math.floor(G.dist)+G.coins*10;
+    ensureAhead();
+    // drop segments far behind the last chaser
+    while(segs.length>2 && G.segIdx>0 && playerD()-CHASE_FAR-6>segs[0].start+segs[0].len+8){ removeSegment(segs.shift()); G.segIdx--; }
+    updateHud(false);
+  }
+  if(G.state==='dying'){
+    G.deathT+=dt;
+    if(G.reason==='fall'){ G.vy=(G.vy||0)-25*dt; G.y+=G.vy*dt; G.s+=G.speed*0.4*dt; }
+    else if(G.reason==='hit'){ runner.rotation.z=Math.min(1.3,G.deathT*4); G.y=Math.max(0,G.y-6*dt); }
+    else { G.chaseDist=Math.max(0.5,G.chaseDist-6*dt); runner.rotation.z=Math.min(1.4,G.deathT*3); }
+    if(G.deathT>1.2) showOver();
+  }
+  // ---- place runner
+  const seg=segs[G.segIdx];
+  const pos=playerPos(tmpV); pos.y=G.y;
+  runner.position.copy(pos);
+  const tgtRot=Math.atan2(-seg.d.z,seg.d.x);
+  if(G.state==='run'){ runner.rotation.y=tgtRot; runner.rotation.z=0; runner.rotation.x=0; }
+  G.phase+=(running?G.speed:6)*dt*0.9;
+  const {legs,arms,torso}=runner.userData;
+  const sw=G.jumping?0.3:1;
+  legs[0].rotation.z=Math.sin(G.phase)*0.9*sw; legs[1].rotation.z=-Math.sin(G.phase)*0.9*sw;
+  arms[0].rotation.z=-Math.sin(G.phase)*0.8*sw; arms[1].rotation.z=Math.sin(G.phase)*0.8*sw;
+  if(G.wobble>0){ G.wobble-=dt*2; runner.rotation.x=Math.sin(G.wobble*18)*0.25*G.wobble; }
+  runner.scale.y=G.sliding?0.55:1; runner.scale.x=G.sliding?1.25:1;
+  runner.position.y=pos.y+(G.jumping||G.sliding?0:Math.abs(Math.sin(G.phase))*0.08);
+  // ---- place chasers
+  const D=playerD();
+  for(const c of chasers){
+    const u=c.userData; const cseg=pathPos(D-G.chaseDist-u.stagger-1.2,u.lane,tmpV2);
+    c.position.copy(tmpV2); u.phase+=(running?G.speed:6)*dt*0.8;
+    c.position.y=Math.abs(Math.sin(u.phase))*0.35;
+    const rot=Math.atan2(-cseg.d.z,cseg.d.x); let dr=rot-c.rotation.y; dr=Math.atan2(Math.sin(dr),Math.cos(dr)); c.rotation.y+=dr*Math.min(1,dt*8);
+    c.rotation.z=Math.sin(u.phase)*0.12; c.rotation.x=-0.1;
+    if(G.state==='dying'&&G.reason==='caught') c.position.y=Math.abs(Math.sin(G.deathT*10))*1.2;
+  }
+  // ---- coins spin
+  for(let i=G.segIdx;i<Math.min(segs.length,G.segIdx+2);i++) for(const m of segs[i].coinMeshes) m.rotation.y+=3.5*dt;
+  // ---- camera
+  camDir.lerp(seg.d,Math.min(1,dt*5)).normalize();
+  tmpV2.copy(pos); tmpV2.y=Math.max(0,G.y)*0.5;
+  camera.position.copy(tmpV2).addScaledVector(camDir,-CAM_BACK); camera.position.y+=CAM_UP;
+  tmpV2.addScaledVector(camDir,7); tmpV2.y+=0.6; camera.lookAt(tmpV2);
+  sun.position.copy(pos).add(new THREE.Vector3(14,30,10)); sun.target.position.copy(pos);
+  ground.position.set(Math.round(pos.x/20)*20,ground.position.y,Math.round(pos.z/20)*20);
+}
+
+reset();
+let last=performance.now();
+function frame(t){ const dt=Math.min(0.05,(t-last)/1000); last=t; update(dt); renderer.render(scene,camera); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+window.__templeDash={G,segs:()=>segs,act,start};
+</script>
+</body>
+</html>

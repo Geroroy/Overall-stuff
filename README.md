@@ -105,3 +105,7 @@ FBMOD_SAMPLES=/dir/with/No.Visor.Mod.fbmod pytest   # + checks on a real SWBF2 m
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). No Frosty Tool Suite
 code is included; mods and game assets are never committed (`*.fbmod` is
 git-ignored).
+
+## 그 외
+
+- [`temple-dash/`](temple-dash/README.md) — 브라우저용 3D 엔드리스 러너 (인형 세 마리가 추격). `temple-dash/index.html`을 열면 실행됩니다.
