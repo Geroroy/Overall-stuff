@@ -27,7 +27,14 @@
   .reason{font-size:22px;color:#ffb3a0;margin:4px 0 10px}
   .score{font-size:34px;color:#ffd75e;margin:4px 0}
   .best{font-size:16px;color:#f3e3bd}
-  .hidden{display:none}
+  .hidden{display:none !important}
+  button.ghost{background:transparent;color:#ffd75e;border:2px solid #c9a24e;box-shadow:none;font-size:17px;padding:9px 20px;margin-left:8px}
+  #castView{position:absolute;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 4px #000}
+  #castView .strip{position:absolute;top:10px;left:0;right:0;display:flex;justify-content:center;gap:10px}
+  #castView .strip div{text-align:center;font-size:13px;font-weight:bold}
+  #castView .strip img{display:block;width:84px;height:84px;object-fit:cover;border-radius:12px;border:3px solid #c9a24e;background:#eee;margin-bottom:3px}
+  #castView .castBar{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:14px;font-size:15px}
+  #castView button{pointer-events:auto;margin:0;font-size:18px;padding:9px 24px}
   #msg{position:absolute;left:0;right:0;top:34%;text-align:center;color:#fff;font-size:34px;font-weight:bold;text-shadow:0 3px 8px #000;pointer-events:none;opacity:0;transition:opacity .2s}
   @media (max-width:520px){h1{font-size:34px}.cast div{width:92px}.cast img{width:92px;height:92px}.keys{font-size:13px}}
 </style>
@@ -56,8 +63,18 @@
       <b>모바일</b> 스와이프 ← → ↑ ↓
     </div><br>
     <button id="btnStart">달리기 시작</button>
+    <button id="btnCast" class="ghost">인형 자세히 보기</button>
     <div class="best" style="margin-top:10px">최고 점수: <span id="best0">0</span></div>
   </div>
+</div>
+
+<div id="castView" class="hidden">
+  <div class="strip">
+    <div><img src="assets/cast-gray.jpg" alt="회색 고릴라 사진"><span>회색 고릴라</span></div>
+    <div><img src="assets/cast-orange.png" alt="주황 원숭이 사진"><span>주황 원숭이</span></div>
+    <div><img src="assets/cast-brown.jpg" alt="초록잠옷 원숭이 사진"><span>초록잠옷 원숭이</span></div>
+  </div>
+  <div class="castBar"><span>드래그해서 돌려보기</span><button id="btnBack">돌아가기</button></div>
 </div>
 
 <div id="over" class="overlay hidden">
@@ -137,64 +154,178 @@ const SPH=new THREE.SphereGeometry(1,22,16);
 function ball(r,mat,x,y,z,sx=1,sy=1,sz=1){ const m=new THREE.Mesh(SPH,mat); m.position.set(x,y,z); m.scale.set(r*sx,r*sy,r*sz); m.castShadow=true; return m; }
 function box(w,h,d,mat,x,y,z){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; return m; }
 function cyl(rt,rb,h,mat,x,y,z,seg=14){ const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; return m; }
-function smile(r,mat,x,y,z,tube=0.035){ const m=new THREE.Mesh(new THREE.TorusGeometry(r,tube,8,20,Math.PI),mat); m.position.set(x,y,z); m.rotation.set(0,Math.PI/2,Math.PI); return m; }
 
 // ---------------------------------------------------------------- ground (jungle floor far below the stone path)
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(600,600),M(0xffffff,{map:groundTex}));
 ground.rotation.x=-Math.PI/2; ground.position.y=-DEPTH-0.5; ground.receiveShadow=true; scene.add(ground);
 
-// ---------------------------------------------------------------- the three plush chasers (modeled from the photos, forward = +x)
-function plushGray(){ // dark slate gorilla with pale round face, heart-ish eyes, pink cheek
-  const g=new THREE.Group();
-  const dark=M(0x3b4150), light=M(0xd8dcd8), grey=M(0x878c93), pink=M(0xf0a2ad), eye=M(0x2a2e36);
-  g.add(ball(0.95,dark,0,0.85,0,1,0.82,1.05));
-  g.add(ball(0.8,dark,0.1,1.95,0));
-  g.add(ball(0.62,light,0.45,2.05,0,0.6,1,1));
-  g.add(ball(0.64,light,0.75,1.68,0,0.95,0.75,1.12));
-  g.add(ball(0.08,eye,0.96,2.26,0.2)); g.add(ball(0.08,eye,0.96,2.26,-0.2));
-  g.add(ball(0.15,grey,1.3,1.8,0.27,0.3,0.9,1)); g.add(ball(0.15,grey,1.3,1.8,-0.27,0.3,0.9,1));
-  g.add(smile(0.36,grey,1.34,1.62,0));
-  g.add(ball(0.13,pink,1.2,1.55,0.55,0.3,1,1));
-  g.add(ball(0.24,grey,0,2.0,0.82)); g.add(ball(0.24,grey,0,2.0,-0.82));
-  g.add(ball(0.4,light,0.7,1.0,0.78)); g.add(ball(0.4,light,0.7,1.0,-0.78));
-  g.add(ball(0.52,light,0.5,0.38,0.52,1,0.8,1)); g.add(ball(0.52,light,0.5,0.38,-0.52,1,0.8,1));
-  return g;
+// ---------------------------------------------------------------- the three plush chasers (modeled from the photos, forward = +x, up = +y)
+// Toolkit: axis-aligned ellipsoid "blobs", decals that sit exactly on a blob's surface,
+// stitched seams traced along the line where a face plate meets the head, embroidered lines.
+const SPH_HI=new THREE.SphereGeometry(1,40,28);
+const _up=new THREE.Vector3(0,1,0), _white=new THREE.Color(0xffffff);
+const D=(yaw,pitch)=>{ const y=yaw*Math.PI/180, p=pitch*Math.PI/180; return new THREE.Vector3(Math.cos(p)*Math.cos(y),Math.sin(p),Math.cos(p)*Math.sin(y)); };
+function plushMat(hex,sheen=0.45){ const c=new THREE.Color(hex); return new THREE.MeshPhysicalMaterial({color:c,roughness:0.95,metalness:0,sheen:1,sheenRoughness:0.5,sheenColor:c.clone().lerp(_white,sheen)}); }
+function threadMat(hex,rough=0.75){ return new THREE.MeshStandardMaterial({color:hex,roughness:rough,metalness:0,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}); }
+class Blob{
+  constructor(parent,mat,c,r,{shadow=true}={}){ this.parent=parent; this.c=new THREE.Vector3(...c); this.r=new THREE.Vector3(...r);
+    const m=new THREE.Mesh(SPH_HI,mat); m.position.copy(this.c); m.scale.copy(this.r); m.castShadow=shadow; m.receiveShadow=true; parent.add(m); this.mesh=m; }
+  surf(dir){ const d=dir.clone().normalize(), r=this.r; const t=1/Math.sqrt((d.x/r.x)**2+(d.y/r.y)**2+(d.z/r.z)**2); const p=d.multiplyScalar(t);
+    const n=new THREE.Vector3(p.x/r.x**2,p.y/r.y**2,p.z/r.z**2).normalize(); return {p:p.add(this.c),n}; }
+  inside(p){ const q=p.clone().sub(this.c), r=this.r; return (q.x/r.x)**2+(q.y/r.y)**2+(q.z/r.z)**2; }
 }
-function plushOrange(){ // chunky orange monkey, cream face plate and muzzle, black dot eyes, hair tuft
-  const g=new THREE.Group();
-  const orange=M(0xe9925c), cream=M(0xf7e9d2), eye=M(0x1c1c1c), nose=M(0xd9a08d);
-  g.add(ball(0.98,orange,0,0.8,0,1.1,0.78,1.05));
-  g.add(ball(0.82,orange,0.2,1.9,0));
-  g.add(ball(0.6,cream,0.62,2.05,0,0.5,1,1.05));
-  g.add(ball(0.62,cream,0.78,1.62,0,1,0.72,1.1));
-  g.add(ball(0.085,eye,1.03,2.2,0.21)); g.add(ball(0.085,eye,1.03,2.2,-0.21));
-  g.add(ball(0.07,nose,1.38,1.72,0.17,0.5,1,1)); g.add(ball(0.07,nose,1.38,1.72,-0.17,0.5,1,1));
-  g.add(smile(0.22,nose,1.36,1.5,0,0.025));
-  for(const [x,z] of [[0.1,0],[0.3,0.18],[0.3,-0.18]]) g.add(cyl(0,0.12,0.45,orange,x,2.78,z,6));
-  const earL=ball(0.22,orange,0.1,2.3,0.78), earR=ball(0.22,orange,0.1,2.3,-0.78); g.add(earL,earR);
-  g.add(ball(0.12,cream,0.25,2.3,0.82)); g.add(ball(0.12,cream,0.25,2.3,-0.82));
-  g.add(ball(0.42,cream,0.75,0.95,0.85)); g.add(ball(0.42,cream,0.75,0.95,-0.85));
-  g.add(ball(0.5,cream,0.6,0.35,0.5,1,0.8,1)); g.add(ball(0.5,cream,0.6,0.35,-0.5,1,0.8,1));
-  return g;
-}
-function plushBrown(){ // brown monkey in green fleece pajamas with white bones
-  const g=new THREE.Group();
-  const brown=M(0x9b7a57), cream=M(0xf4ead8), green=M(0x4f6f3c), white=M(0xf5f5f0), eye=M(0x141414);
-  g.add(ball(0.9,green,0,0.9,0,0.95,0.95,1));
-  for(const [a,b] of [[0.3,0.6],[-0.4,0.2],[1.2,-0.4],[2.4,0.3],[3.4,-0.2],[0.9,-1.0]]){
-    const x=0.9*Math.cos(a)*Math.cos(b), z=0.9*Math.sin(a)*Math.cos(b), y=0.9+0.9*Math.sin(b);
-    const bone=new THREE.Mesh(new THREE.CapsuleGeometry(0.045,0.2,3,6),white); bone.position.set(x*1.02,y*1.0,z*1.02); bone.rotation.set(rand(0,3),rand(0,3),rand(0,3)); g.add(bone);
+const blob=(parent,mat,c,r,o)=>new Blob(parent,mat,c,r,o);
+function orient(obj,p,n,roll=0){ const x=new THREE.Vector3().crossVectors(_up,n); if(x.lengthSq()<1e-4) x.set(0,0,-1); x.normalize();
+  const y=new THREE.Vector3().crossVectors(n,x); obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,n)); if(roll) obj.rotateZ(roll); obj.position.copy(p); }
+const shapeCache={};
+function shapeGeo(kind){ if(shapeCache[kind]) return shapeCache[kind]; const s=new THREE.Shape();
+  if(kind==='oval') s.absellipse(0,0,0.5,0.5,0,Math.PI*2,false,0);
+  else if(kind==='bean'){ s.moveTo(0,-0.16); s.bezierCurveTo(-0.14,-0.46,-0.56,-0.44,-0.5,-0.06); s.bezierCurveTo(-0.44,0.36,0.44,0.36,0.5,-0.06); s.bezierCurveTo(0.56,-0.44,0.14,-0.46,0,-0.16); }
+  else if(kind==='tongue'){ s.moveTo(-0.5,0.3); s.lineTo(0.5,0.3); s.bezierCurveTo(0.56,-0.25,0.3,-0.5,0,-0.5); s.bezierCurveTo(-0.3,-0.5,-0.56,-0.25,-0.5,0.3); }
+  return shapeCache[kind]=new THREE.ShapeGeometry(s,24); }
+// flat embroidered patch lying on a blob: w,h in local units, roll in radians
+function patch(b,dir,kind,mat,w,h,{lift=0.006,roll=0}={}){ const {p,n}=b.surf(dir); const m=new THREE.Mesh(shapeGeo(kind),mat); orient(m,p.addScaledVector(n,lift),n,roll); m.scale.set(w,h,1); b.parent.add(m); return m; }
+// raised piece (domed) on a blob, e.g. a tongue or button
+function bump(b,dir,mat,w,h,depth,{sink=0.4,roll=0}={}){ const {p,n}=b.surf(dir); const m=new THREE.Mesh(SPH_HI,mat); orient(m,p.addScaledVector(n,depth*(1-sink)),n,roll); m.scale.set(w/2,h/2,depth); m.castShadow=true; b.parent.add(m); return m; }
+function tube(parent,pts,mat,radius){ if(pts.length<2) return null; const curve=new THREE.CatmullRomCurve3(pts); const m=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(8,pts.length*4),radius,6,false),mat); m.castShadow=false; parent.add(m); return m; }
+// embroidered line on a blob through a list of [yaw,pitch] directions
+function thread(b,dirs,mat,radius=0.018){ return tube(b.parent,dirs.map(([y,p])=>{ const {p:q,n}=b.surf(D(y,p)); return q.addScaledVector(n,radius*0.5); }),mat,radius); }
+// raised seam where plate meets base (traced numerically on base's surface); parts hidden inside `exclude` blobs are skipped
+function seam(base,plate,mat,{radius=0.026,exclude=[],steps=72}={}){
+  const axis=plate.c.clone().sub(base.c); if(axis.lengthSq()<1e-8) axis.set(1,0,0); axis.normalize();
+  const u=new THREE.Vector3().crossVectors(axis,Math.abs(axis.y)<0.9?_up:new THREE.Vector3(1,0,0)).normalize(), v=new THREE.Vector3().crossVectors(axis,u);
+  const runs=[]; let cur=null;
+  for(let i=0;i<=steps;i++){ const a=i/steps*Math.PI*2; const w=u.clone().multiplyScalar(Math.cos(a)).addScaledVector(v,Math.sin(a));
+    const dirAt=b=>axis.clone().multiplyScalar(Math.cos(b)).addScaledVector(w,Math.sin(b)); const f=b=>plate.inside(base.surf(dirAt(b)).p)-1;
+    let pt=null;
+    if(f(0)<0){ let lo=0,hi=null; for(let b=0.02;b<3.1;b+=0.02){ if(f(b)>0){ hi=b; lo=b-0.02; break; } }
+      if(hi!==null){ for(let k=0;k<22;k++){ const m=(lo+hi)/2; if(f(m)>0) hi=m; else lo=m; } const {p,n}=base.surf(dirAt(lo));
+        if(!exclude.some(e=>e.inside(p)<0.97)) pt=p.addScaledVector(n,radius*0.35); } }
+    if(pt){ if(!cur){ cur={i0:i,pts:[]}; runs.push(cur); } cur.pts.push(pt); cur.i1=i; } else cur=null;
   }
-  g.add(ball(0.85,brown,0.1,2.05,0));
-  g.add(ball(0.62,cream,0.62,2.2,0,0.5,1,1));
-  g.add(ball(0.58,cream,0.82,1.72,0,1,0.72,1.15));
-  g.add(ball(0.09,eye,1.08,2.3,0.25)); g.add(ball(0.09,eye,1.08,2.3,-0.25));
-  g.add(smile(0.26,eye,1.38,1.68,0,0.022));
-  g.add(ball(0.26,brown,0.1,2.15,0.88)); g.add(ball(0.26,brown,0.1,2.15,-0.88));
-  g.add(ball(0.15,cream,0.3,2.15,0.95)); g.add(ball(0.15,cream,0.3,2.15,-0.95));
-  g.add(ball(0.32,brown,0.65,0.9,0.9)); g.add(ball(0.32,brown,0.65,0.9,-0.9));
-  g.add(ball(0.38,brown,0.7,0.3,0.48,1,0.8,1)); g.add(ball(0.38,brown,0.7,0.3,-0.48,1,0.8,1));
-  return g;
+  if(runs.length>1 && runs[0].i0===0 && runs[runs.length-1].i1===steps){ const last=runs.pop(); runs[0].pts=last.pts.slice(0,-1).concat(runs[0].pts); }
+  for(const r of runs) tube(base.parent,r.pts,mat,radius);
+}
+// merge transformed copies of geometries into one (fewer draw calls for bone prints and collar fluff)
+function mergeGeos(list){ let pos=[],nor=[],idx=[],off=0;
+  for(const [g,mat4] of list){ const q=g.clone().applyMatrix4(mat4); pos.push(...q.attributes.position.array); nor.push(...q.attributes.normal.array);
+    for(const i of q.index.array) idx.push(i+off); off+=q.attributes.position.count; q.dispose(); }
+  const out=new THREE.BufferGeometry(); out.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); out.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3)); out.setIndex(idx); return out; }
+const SPH_LO=new THREE.SphereGeometry(1,14,10);
+const m4=(x,y,z,sx,sy,sz)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion(),new THREE.Vector3(sx,sy,sz));
+const BONE_GEO=mergeGeos([[SPH_LO,m4(0,0,0,0.085,0.028,0.02)],...[-1,1].flatMap(sx=>[-1,1].map(sy=>[SPH_LO,m4(sx*0.085,sy*0.026,0,0.035,0.035,0.02)]))]);
+function pivot(parent,x,y,z){ const g=new THREE.Group(); g.position.set(x,y,z); parent.add(g); return g; }
+function finishPlush(rig,parts,gait){ const g=new THREE.Group(); g.add(rig); g.userData={rig,parts,gait,phase:0}; return g; }
+
+// --- 1. gray gorilla: charcoal body, pale-gray face mask with puffy seam, huge muzzle with
+//        gray heart-shaped nostrils, long gray smile, pink tongue at one corner, curl on top, big pale hands & feet
+function plushGray(){
+  const rig=new THREE.Group(), P={};
+  const dark=plushMat(0x3a3e4b,0.35), pale=plushMat(0xd3d6d2,0.3), seamPale=plushMat(0xc4c8c4,0.3), pink=plushMat(0xf09aa6,0.3);
+  const grayT=threadMat(0x80858d), eyeT=threadMat(0x1f2229,0.5);
+  const torso=blob(rig,dark,[0,1.2,0],[0.92,0.84,0.88]); torso.mesh.rotation.z=0.22;
+  blob(rig,dark,[-0.55,1.0,0],[0.62,0.6,0.7]);
+  const H=P.head=pivot(rig,0.66,1.98,0); H.rotation.z=0.06;
+  const skull=blob(H,dark,[0,0,0],[0.72,0.68,0.75]);
+  const face=blob(H,pale,[0.32,0.17,0],[0.44,0.4,0.58]);
+  const muz=blob(H,pale,[0.62,-0.3,0],[0.6,0.5,0.74]);
+  seam(skull,face,seamPale,{radius:0.034,exclude:[muz]});
+  seam(skull,muz,seamPale,{radius:0.03,exclude:[face]});
+  seam(face,muz,seamPale,{radius:0.026,exclude:[skull]});
+  for(const s of [1,-1]) patch(face,D(s*13,22),'oval',eyeT,0.085,0.12,{roll:s*0.2});
+  for(const s of [1,-1]) patch(muz,D(s*22,36),'bean',grayT,0.3,0.25,{roll:s*0.2});
+  thread(muz,[[-60,-2],[-47,-13],[-30,-22],[-10,-27],[10,-27],[30,-22],[46,-14],[58,-5]],grayT,0.022);
+  bump(muz,D(-60,-10),pink,0.17,0.15,0.07,{sink:0.45,roll:-0.5});
+  for(const s of [1,-1]){ const ear=blob(H,pale,[0.04,-0.04,s*0.74],[0.12,0.2,0.08]); patch(ear,new THREE.Vector3(0.25,0,s),'oval',grayT,0.1,0.18); }
+  blob(H,pale,[0.12,0.68,0.05],[0.11,0.1,0.09]); const curl=blob(H,pale,[0.02,0.72,-0.07],[0.09,0.08,0.08]); curl.mesh.rotation.z=0.5;
+  for(const s of [1,-1]){ // long arms ending in pale knuckle hands
+    const a=pivot(rig,0.5,1.62,s*0.8); const up=blob(a,dark,[0,-0.55,0],[0.27,0.62,0.27]); up.mesh.rotation.x=-s*0.05;
+    blob(a,pale,[0.1,-1.3,0],[0.31,0.27,0.31]); P[s>0?'armL':'armR']=a;
+    const l=pivot(rig,-0.5,0.78,s*0.5); blob(l,dark,[0,-0.2,0],[0.3,0.32,0.3]); blob(l,pale,[0.12,-0.52,0],[0.42,0.27,0.35]); P[s>0?'legL':'legR']=l;
+  }
+  return finishPlush(rig,P,'knuckle');
+}
+
+// --- 2. orange monkey: salmon-orange body, cream face mask and wide muzzle, black upright oval eyes,
+//        dusty-pink bean nostrils, peach three-lobed tuft, cream paws, lies flat like a pillow -> runs on all fours
+function plushOrange(){
+  const rig=new THREE.Group(), P={};
+  const orange=plushMat(0xe58c58,0.35), cream=plushMat(0xf6e4c9,0.25), seamCream=plushMat(0xeedbbd,0.25), peach=plushMat(0xf7dfc8,0.2);
+  const pinkT=threadMat(0xd99797), eyeT=threadMat(0x1a1a1a,0.5), mouthT=threadMat(0xc98a7e);
+  const body=blob(rig,orange,[-0.25,1.0,0],[1.08,0.66,0.84]);
+  blob(rig,orange,[0.35,1.15,0],[0.6,0.62,0.78]);
+  const H=P.head=pivot(rig,0.82,1.52,0); H.rotation.z=-0.04;
+  const skull=blob(H,orange,[0,0,0],[0.7,0.64,0.76]);
+  const face=blob(H,cream,[0.3,0.1,0],[0.44,0.45,0.56]);
+  const muz=blob(H,cream,[0.5,-0.26,0],[0.47,0.36,0.62]);
+  seam(skull,face,seamCream,{radius:0.03,exclude:[muz]});
+  seam(skull,muz,seamCream,{radius:0.028,exclude:[face]});
+  seam(face,muz,seamCream,{radius:0.024,exclude:[skull]});
+  for(const s of [1,-1]) patch(face,D(s*16,24),'oval',eyeT,0.085,0.135);
+  for(const s of [1,-1]) patch(muz,D(s*27,24),'bean',pinkT,0.2,0.17,{roll:s*0.4});
+  thread(muz,[[-30,-14],[-16,-22],[0,-24],[16,-22],[30,-14]],mouthT,0.013);
+  // peach tuft: centre lobe + two side lobes
+  const t0=blob(H,peach,[0.16,0.66,0],[0.12,0.16,0.1]); t0.mesh.rotation.z=-0.25;
+  for(const s of [1,-1]){ const t=blob(H,peach,[0.12,0.6,s*0.15],[0.11,0.12,0.09]); t.mesh.rotation.x=-s*0.6; }
+  for(const s of [1,-1]){ const ear=blob(H,orange,[0.02,0.0,s*0.74],[0.14,0.2,0.09]); patch(ear,new THREE.Vector3(0.3,0,s),'oval',threadMat(0xf3dcc0,0.95),0.14,0.22); }
+  for(const s of [1,-1]){
+    const a=pivot(rig,0.55,1.05,s*0.64); blob(a,orange,[0,-0.38,0],[0.26,0.46,0.26]); blob(a,cream,[0.12,-0.8,0],[0.32,0.24,0.3]); P[s>0?'armL':'armR']=a;
+    const l=pivot(rig,-0.95,0.9,s*0.56); blob(l,orange,[0,-0.3,0],[0.28,0.4,0.28]); blob(l,cream,[0.12,-0.66,0],[0.36,0.24,0.31]); P[s>0?'legL':'legR']=l;
+  }
+  return finishPlush(rig,P,'bound');
+}
+
+// --- 3. brown monkey in green fleece pyjamas: big round head, cream heart-shaped face (two lobes),
+//        round black eyes, cream muzzle with black curled smile, large ears with cream centres,
+//        white fluffy collar, white bone print, brown mitten hands and brown feet with toe stitching
+function plushBrown(){
+  const rig=new THREE.Group(), P={};
+  const brown=plushMat(0x93744f,0.35), cream=plushMat(0xf4ebda,0.2), seamCream=plushMat(0xebe0cc,0.2), green=plushMat(0x4d6a39,0.45), fluff=plushMat(0xf5f4ee,0.15);
+  const eyeT=threadMat(0x121212,0.5), stitchT=threadMat(0x6d5236);
+  const bones=[];
+  const torso=blob(rig,green,[0,1.0,0],[0.6,0.7,0.66]);
+  { const collar=new THREE.Mesh(mergeGeos(Array.from({length:16},(_,i)=>{ const a=i/16*Math.PI*2; return [SPH_LO,m4(Math.cos(a)*0.38,1.62+Math.sin(i*1.7)*0.02,Math.sin(a)*0.4,0.13,0.1,0.13)]; })),fluff); collar.castShadow=true; rig.add(collar); }
+  bones.push([torso,[[20,30],[-35,10],[60,-15],[-70,-30],[5,-35],[110,20],[-120,25],[160,-10],[-165,-25],[140,40],[200,5],[90,-45],[-95,-5],[35,-5]]]);
+  const H=P.head=pivot(rig,0.05,2.24,0);
+  const skull=blob(H,brown,[0,0,0],[0.8,0.78,0.8]);
+  // heart-shaped face: two caps that hug the head (offset copies of the skull), overlapping in the middle
+  const lobes=[1,-1].map(s=>blob(H,cream,[0.182,0.048,s*0.066],[0.635,0.619,0.635]));
+  const muz=blob(H,cream,[0.58,-0.25,0],[0.4,0.36,0.54]);
+  for(const [i,l] of lobes.entries()) seam(skull,l,seamCream,{radius:0.028,exclude:[lobes[1-i],muz]});
+  seam(skull,muz,seamCream,{radius:0.026,exclude:lobes});
+  for(const l of lobes) seam(l,muz,seamCream,{radius:0.024,exclude:[skull]});
+  for(const [i,l] of lobes.entries()){ const s=i?-1:1; patch(l,D(s*20,8),'oval',eyeT,0.16,0.165); }
+  thread(muz,[[-42,-10],[-30,-19],[-15,-25],[0,-27],[15,-25],[30,-19],[42,-10]],eyeT,0.015);
+  for(const s of [1,-1]) thread(muz,[[s*38,-14],[s*44,-9],[s*46,-3]],eyeT,0.014);
+  for(const s of [1,-1]){ const ear=blob(H,brown,[-0.02,0.24,s*0.86],[0.12,0.33,0.32]); bump(ear,new THREE.Vector3(1,0,s*0.35),cream,0.36,0.38,0.05,{sink:0.6}); }
+  for(const s of [1,-1]){
+    const a=pivot(rig,0.02,1.45,s*0.6); a.rotation.x=-s*0.25; const sl=blob(a,green,[0,-0.3,0],[0.22,0.38,0.22]); blob(a,brown,[0.04,-0.72,0],[0.24,0.26,0.22]);
+    bones.push([sl,[[0,-10],[120,30],[-140,-20],[60,40]]]); P[s>0?'armL':'armR']=a;
+    const l=pivot(rig,0,0.5,s*0.32); const pant=blob(l,green,[0,-0.1,0],[0.31,0.28,0.29]); const foot=blob(l,brown,[0.16,-0.36,0],[0.37,0.16,0.26]);
+    bones.push([pant,[[10,10],[170,0],[-60,-20]]]);
+    for(const y of [-30,30]) thread(foot,[[y,25],[y,5]],stitchT,0.012);
+    thread(foot,[[150,-60],[180,-62],[210,-60]],stitchT,0.011);
+    P[s>0?'legL':'legR']=l;
+  }
+  // white bone print (a bar with two knobs at each end), flattened onto the fleece
+  for(const [b,dirs] of bones) for(const [y,p] of dirs){ const {p:q,n}=b.surf(D(y,p)); const g=new THREE.Mesh(BONE_GEO,fluff);
+    orient(g,q.addScaledVector(n,0.008),n,(y*7+p*3)%3.1); b.parent.add(g); }
+  return finishPlush(rig,P,'waddle');
+}
+
+// gait animation (rig space): ph = stride phase, k = 0 idle .. 1 running, cheer = caught celebration
+function animatePlush(c,k,cheer){
+  const {rig,parts:P,gait,phase:ph}=c.userData; const s=Math.sin(ph), s2=Math.sin(ph+Math.PI);
+  let bob=0, pitch=0, roll=0;
+  if(gait==='knuckle'){ P.armL.rotation.z=s*0.65*k; P.armR.rotation.z=Math.sin(ph+0.7)*0.65*k; P.legL.rotation.z=s2*0.55*k; P.legR.rotation.z=Math.sin(ph+Math.PI+0.7)*0.55*k;
+    bob=Math.abs(Math.sin(ph))*0.2*k; pitch=Math.sin(ph*2)*0.05*k; P.head.rotation.z=0.06-pitch; }
+  else if(gait==='bound'){ P.armL.rotation.z=s*0.75*k; P.armR.rotation.z=Math.sin(ph+0.35)*0.75*k; P.legL.rotation.z=s2*0.7*k; P.legR.rotation.z=Math.sin(ph+Math.PI+0.35)*0.7*k;
+    bob=Math.max(0,Math.sin(ph))*0.38*k; pitch=Math.sin(ph)*0.12*k; P.head.rotation.z=-0.04-pitch*0.6; }
+  else { P.legL.rotation.z=s*0.6*k; P.legR.rotation.z=s2*0.6*k; P.armL.rotation.z=s2*0.7*k; P.armR.rotation.z=s*0.7*k;
+    bob=Math.abs(s)*0.16*k; roll=s*0.1*k; P.head.rotation.x=-roll*0.6; }
+  const breathe=(1-k)*Math.sin(ph*0.35)*0.03;
+  if(cheer>0){ for(const a of [P.armL,P.armR]) a.rotation.z=2.6+Math.sin(ph*1.6)*0.25; bob+=cheer; }
+  rig.position.y=bob; rig.rotation.z=pitch; rig.rotation.x=roll; rig.scale.y=1+breathe;
 }
 
 // ---------------------------------------------------------------- the runner (original explorer, forward = +x)
@@ -443,7 +574,25 @@ function updateHud(force){
   const pct=Math.round(clamp(1-(G.chaseDist-0.6)/(CHASE_FAR-0.6),0,1)*100); if(force||hudCache.p!==pct){ $('chaseFill').style.width=pct+'%'; hudCache.p=pct; }
 }
 
+// ---------------------------------------------------------------- cast viewer (compare the 3D plushes with the photos)
+const CAST={base:0,drag:null,t:0};
+function openCast(){ if(G.state!=='idle'&&G.state!=='over') return; G.prevState=G.state; G.state='cast'; for(const id of ['start','over']) $(id).classList.add('hidden'); $('castView').classList.remove('hidden'); $('hud').style.visibility='hidden'; runner.visible=false; CAST.base=0; CAST.t=0; }
+function closeCast(){ if(G.state!=='cast') return; G.state='idle'; reset(); $('castView').classList.add('hidden'); $('start').classList.remove('hidden'); $('hud').style.visibility=''; runner.visible=true; }
+function updateCast(dt){
+  CAST.t+=dt; const C=new THREE.Vector3(0,0,-14), gap=camera.aspect<0.8?2.35:2.9;
+  const yaw=CAST.base+(CAST.drag?0:Math.sin(CAST.t*0.7)*0.55);
+  chasers.forEach((c,i)=>{ c.position.set(C.x+(i-1)*gap,0,C.z); c.rotation.y=-Math.PI/2+yaw; c.userData.phase+=dt*3; animatePlush(c,0,0); });
+  const dist=Math.max(5.2,(gap+(camera.aspect<0.8?1.3:1.7))/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+  camera.position.set(C.x,1.5+dist*0.1,C.z+dist); camera.lookAt(C.x,1.35+(camera.aspect<0.8?0.6:0),C.z);
+  sun.position.copy(C).add(new THREE.Vector3(10,26,22)); sun.target.position.copy(C);
+}
+canvas.addEventListener('pointermove',e=>{ if(G.state!=='cast'||!tS) return; if(!CAST.drag) CAST.drag={x:e.clientX,base:CAST.base}; CAST.base=CAST.drag.base+(e.clientX-CAST.drag.x)*0.012; });
+addEventListener('pointerup',()=>{ CAST.drag=null; });
+$('btnCast').onclick=openCast; $('btnBack').onclick=closeCast;
+addEventListener('keydown',e=>{ if(G.state==='cast'&&(e.code==='Escape'||e.code==='Enter'||e.code==='Backspace')){ e.preventDefault(); e.stopImmediatePropagation(); closeCast(); } },true);
+
 function update(dt){
+  if(G.state==='cast'){ updateCast(dt); return; }
   const running=G.state==='run';
   if(running){
     G.time+=dt; G.speed=Math.min(MAX_SPEED,BASE_SPEED+G.time*0.11);
@@ -467,7 +616,7 @@ function update(dt){
     if(G.reason==='fall'){ G.vy=(G.vy||0)-25*dt; G.y+=G.vy*dt; G.s+=G.speed*0.4*dt; }
     else if(G.reason==='hit'){ runner.rotation.z=Math.min(1.3,G.deathT*4); G.y=Math.max(0,G.y-6*dt); }
     else { G.chaseDist=Math.max(0.5,G.chaseDist-6*dt); runner.rotation.z=Math.min(1.4,G.deathT*3); }
-    if(G.deathT>1.2) showOver();
+    if(G.deathT>(G.reason==='caught'?2.6:1.2)) showOver();
   }
   // ---- place runner
   const seg=segs[G.segIdx];
@@ -484,14 +633,12 @@ function update(dt){
   runner.scale.y=G.sliding?0.55:1; runner.scale.x=G.sliding?1.25:1;
   runner.position.y=pos.y+(G.jumping||G.sliding?0:Math.abs(Math.sin(G.phase))*0.08);
   // ---- place chasers
-  const D=playerD();
+  const D0=playerD(), caught=G.state==='dying'&&G.reason==='caught';
   for(const c of chasers){
-    const u=c.userData; const cseg=pathPos(D-G.chaseDist-u.stagger-1.2,u.lane,tmpV2);
-    c.position.copy(tmpV2); u.phase+=(running?G.speed:6)*dt*0.8;
-    c.position.y=Math.abs(Math.sin(u.phase))*0.35;
+    const u=c.userData; const cseg=pathPos(D0-G.chaseDist-u.stagger-1.2,u.lane,tmpV2);
+    c.position.copy(tmpV2); u.phase+=(running?G.speed:7)*dt*0.6;
     const rot=Math.atan2(-cseg.d.z,cseg.d.x); let dr=rot-c.rotation.y; dr=Math.atan2(Math.sin(dr),Math.cos(dr)); c.rotation.y+=dr*Math.min(1,dt*8);
-    c.rotation.z=Math.sin(u.phase)*0.12; c.rotation.x=-0.1;
-    if(G.state==='dying'&&G.reason==='caught') c.position.y=Math.abs(Math.sin(G.deathT*10))*1.2;
+    animatePlush(c,caught?0.25:1,caught?Math.abs(Math.sin(G.deathT*7+u.stagger*2))*0.8:0);
   }
   // ---- coins spin
   for(let i=G.segIdx;i<Math.min(segs.length,G.segIdx+2);i++) for(const m of segs[i].coinMeshes) m.rotation.y+=3.5*dt;
@@ -499,7 +646,13 @@ function update(dt){
   camDir.lerp(seg.d,Math.min(1,dt*5)).normalize();
   tmpV2.copy(pos); tmpV2.y=Math.max(0,G.y)*0.5;
   camera.position.copy(tmpV2).addScaledVector(camDir,-CAM_BACK); camera.position.y+=CAM_UP;
-  tmpV2.addScaledVector(camDir,7); tmpV2.y+=0.6; camera.lookAt(tmpV2);
+  tmpV2.addScaledVector(camDir,7); tmpV2.y+=0.6;
+  if(caught){ // swing round to face the three plushes as they celebrate
+    let k=Math.min(1,G.deathT/0.8); k=k*k*(3-2*k);
+    const front=pos.clone().addScaledVector(camDir,5.5); front.y=3.4; camera.position.lerp(front,k);
+    const look=pos.clone().addScaledVector(camDir,-(G.chaseDist+2.4)); look.y=1.3; tmpV2.lerp(look,k);
+  }
+  camera.lookAt(tmpV2);
   sun.position.copy(pos).add(new THREE.Vector3(14,30,10)); sun.target.position.copy(pos);
   ground.position.set(Math.round(pos.x/20)*20,ground.position.y,Math.round(pos.z/20)*20);
 }
@@ -508,7 +661,7 @@ reset();
 let last=performance.now();
 function frame(t){ const dt=Math.min(0.05,(t-last)/1000); last=t; update(dt); renderer.render(scene,camera); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
-window.__templeDash={G,segs:()=>segs,act,start};
+window.__templeDash={G,segs:()=>segs,act,start,openCast,closeCast,chasers,CAST,gameOver};
 </script>
 </body>
 </html>
